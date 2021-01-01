@@ -211,14 +211,27 @@ static void set_menu_position(menu_t * self, int start_y , int start_x , int cou
 static void print(menu_t * self) {
   PREPARE_IMPL(self)
 
+
+  // максимальное количество строк на экране
+  int max_y = _privat->position_count_y - _privat->position_start_y;
+  // максимальная длина строки
+  int max_x = _privat->position_count_x - _privat->position_start_x;
+
+  // очищаю остатки, чтобы не очищать экран полность (полная очистка пока работает не красиво)
+  for (int y = _privat->position_start_y ; y < max_y ; y++) {
+    mvwprintw(_privat->win, y , _privat->position_start_x , "%*s" ,
+        max_x , " ");
+  }
+
   _privat->on_display_count = 0;
   for (int y = _privat->position_start_y , i = 0 ; 
-         y < _privat->array_items_count + _privat->position_start_y && y < _privat->position_count_y + _privat->position_start_y && 
-         i < _privat->array_items_count
+       // максимальное количество строк на экране
+       y <= max_y &&
+       // количество пунктов меню
+       i < _privat->array_items_count
        ; i++) {
     // фильтрация списка
     if (strstr(_privat->menu_items[i].value , _privat->item_filter) == NULL) continue;
-    /** if (strstr(_privat->menu_items[i].value , _privat->item_filter) == -1) continue; */
 
     // выделенная строка
     if (y - _privat->position_start_y == _privat->position_cursor) {
@@ -229,11 +242,20 @@ static void print(menu_t * self) {
     // обычная строка
     if (y - _privat->position_start_y != _privat->position_cursor) wattron(_privat->win, COLOR_PAIR(2));
 
-    mvwprintw(_privat->win, y , _privat->position_start_x , "%*s" , 
-        _privat->position_count_x * -1 , _privat->menu_items[i].value);
-    y++;
+    mvwprintw(_privat->win, y , _privat->position_start_x , "%.*s" , 
+        max_x, _privat->menu_items[i].value);
     _privat->on_display_count++;
+    y++;
   }
+
+  // снимаю выделение, так как последующие строки не должны выделяться
+  wattron(_privat->win, COLOR_PAIR(2));
+
+  // если экран заполнен полность, то остатки очищать не требуется
+  /** if (_privat->on_display_count >= max_y - 1) { */
+  /**   return 0; */
+  /** } */
+    
 
 }
 
@@ -287,40 +309,34 @@ void menu_init(menu_t* self) {
 
 // получение файла с историей
 s_history_file * _get_histfile() {
+  // чтобы не повторять дважды , создам функцию для проверки существования файла
+  s_history_file * _true_path( char * env_home , char * file , char * type ) {
+    // произвожу конкатенацию строк
+    char * path = (char *) malloc((strlen(env_home) + strlen(file)) * sizeof(char));
+    strcpy(path, env_home);
+    strcat(path , file);
 
-  char name_history_file[20];
+    FILE *f = fopen (path, "r");
+    if (f) {
+      fclose(f);
+      s_history_file * history_file = malloc(sizeof(s_history_file));
+      history_file->path = path;
+      history_file->type = type;
+      return history_file;
+    }
+
+    fclose(f);
+    free(path);
+    return NULL;
+  }
+
   char * env_home = getenv("HOME");
-  FILE *f;
-  s_history_file * history_file = malloc(sizeof(s_history_file));
+  s_history_file * history_file;
 
-  strcpy(name_history_file , "/.zsh_history");
-  history_file->path = (char *) malloc(strlen(env_home) * sizeof(char) + strlen(name_history_file) * sizeof(char));
-  strcpy(history_file->path, env_home);
-  strcat(history_file->path , name_history_file);
-
-  f = fopen (history_file->path, "r");
-  if (f) {
-    fclose(f);
-    history_file->type = malloc(strlen("zsh") * sizeof(char));
-    strcpy(history_file->type , "zsh");
+  if (history_file = _true_path(env_home , "/.zsh_history" , "zsh"))
     return history_file;
-  }
-
-  free(history_file->path);
-  free(history_file->type);
-
-  strcpy(name_history_file , "/.bash_history");
-  history_file->path = malloc(strlen(env_home) * sizeof(char) + strlen(name_history_file) * sizeof(char));
-  strcpy(history_file->path , env_home);
-  strcat(history_file->path , name_history_file);
-
-  f = fopen (history_file->path, "r");
-  if (f) {
-    fclose(f);
-    history_file->type = malloc(strlen("bash") * sizeof(char));
-    strcpy(history_file->type , "bash");
+  if (history_file = _true_path(env_home , "/.bash_history" , "bash"))
     return history_file;
-  }
 
   perror("fopen");
   exit(1);
@@ -329,9 +345,7 @@ s_history_file * _get_histfile() {
 
 // чтение файла с историей
 int _read_history(menu_t * menu) {
-
   // определяею файл с историей
-  /** char ** shells = [".bash_history" , ".zsh_history"]; */
   s_history_file * history_file = _get_histfile();
 
   using_history();
@@ -375,7 +389,7 @@ int main() {
   /** инифиализируем ncurses */
   WINDOW *my_menu_win;
   initscr();
-  cbreak();
+  /** cbreak(); */
   noecho();
   keypad(stdscr, TRUE);
 
@@ -391,7 +405,7 @@ int main() {
 
   my_menu.set_menu_filter(&my_menu , "");
   my_menu.set_menu_win(&my_menu , my_menu_win);
-  my_menu.set_menu_position(&my_menu , 1, 1, window_row - 2, window_col - 2);
+  my_menu.set_menu_position(&my_menu , 1, 1, window_row - 1, window_col - 2);
   _read_history(&my_menu);
   my_menu.print(&my_menu);
 
@@ -428,7 +442,8 @@ int main() {
 
     /** wclear(my_menu_win); */
     box(my_menu_win, 0, 0);
-    mvwprintw(my_menu_win, 0 , 2 , "%s" , filter_word.data);
+    /** mvwprintw(my_menu_win, 0 , 2 , " %*s " , -8 , filter_word.data); */
+    mvwprintw(my_menu_win, 0 , 2 , " %s " , filter_word.data);
     mvwprintw(my_menu_win, window_row -1 , 2 , "%s" , "Press Ctrl+C to Exit");
     my_menu.print(&my_menu);
     /** mvwprintw(my_menu_win, 0 , 2 , "%d" , c); */
