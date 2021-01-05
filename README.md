@@ -11,6 +11,12 @@ make
 
 ## Ubuntu
 
+Сборка внутри докера
+```
+make docker_debian
+```
+
+Сборка нативно
 ```
 make debian
 ```

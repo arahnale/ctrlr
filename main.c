@@ -94,6 +94,7 @@ typedef struct {
   _privat_t* _privat = (menu_t*)self->_privat;
 
 // перевод из многобайтовой кодировки в двубайтовую
+// выглядит как кусок говна, работает примерно так же
 char * _decode(char * c) {
 
   char * str = ( char* ) malloc( sizeof( char * ) );
@@ -175,8 +176,6 @@ static void new_item(menu_t * self, char * name , char * value) {
 
   item->value = _decode(value) ;
   item->name = _decode(name) ;
-  /** item->name = (char *) malloc((sizeof(char) * strlen(name))) ; */
-  /** strncpy(item->name , name, strlen(name)); */
 
   _privat->array_items_count++;
   _privat->menu_items =
@@ -193,8 +192,6 @@ static void set_menu_mark(menu_t * self, char * mark) {
 
 static void set_menu_filter(menu_t * self, char * filter) {
   PREPARE_IMPL(self)
-  /** _privat->item_filter = malloc(sizeof(char) * (strlen(filter) + 1)); */
-  /** strcpy(_privat->item_filter , filter); */
   _privat->item_filter = filter;
   _privat->position_cursor = 0;
 }
@@ -210,7 +207,6 @@ static void set_menu_position(menu_t * self, int start_y , int start_x , int cou
 
 static void print(menu_t * self) {
   PREPARE_IMPL(self)
-
 
   // максимальное количество строк на экране
   int max_y = _privat->position_count_y - _privat->position_start_y;
@@ -250,18 +246,10 @@ static void print(menu_t * self) {
 
   // снимаю выделение, так как последующие строки не должны выделяться
   wattron(_privat->win, COLOR_PAIR(2));
-
-  // если экран заполнен полность, то остатки очищать не требуется
-  /** if (_privat->on_display_count >= max_y - 1) { */
-  /**   return 0; */
-  /** } */
-    
-
 }
 
 static char * get_menu_item(menu_t * self) {
   PREPARE_IMPL(self)
-
   return _privat->item_value;
 }
 
@@ -325,7 +313,7 @@ s_history_file * _get_histfile() {
       return history_file;
     }
 
-    fclose(f);
+    /** fclose(f); */
     free(path);
     return NULL;
   }
@@ -344,9 +332,8 @@ s_history_file * _get_histfile() {
 
 
 // чтение файла с историей
-int _read_history(menu_t * menu) {
+int _read_history(menu_t * menu , s_history_file * history_file) {
   // определяею файл с историей
-  s_history_file * history_file = _get_histfile();
 
   using_history();
   read_history(history_file->path);
@@ -368,7 +355,7 @@ int _read_history(menu_t * menu) {
     }
   }
 
-  if (strcmp(history_file->type , "bash")) {
+  if (strcmp(history_file->type , "bash") == NULL) {
     for (; hist > 0; hist--){
       menu->new_item(menu , "", hist_list[hist]->line);
     }
@@ -385,6 +372,7 @@ void sigint(int a) {
 
 int main() {
   setlocale(LC_ALL, "");
+  s_history_file * history_file = _get_histfile();
 
   /** инифиализируем ncurses */
   WINDOW *my_menu_win;
@@ -406,7 +394,7 @@ int main() {
   my_menu.set_menu_filter(&my_menu , "");
   my_menu.set_menu_win(&my_menu , my_menu_win);
   my_menu.set_menu_position(&my_menu , 1, 1, window_row - 1, window_col - 2);
-  _read_history(&my_menu);
+  _read_history(&my_menu, history_file);
   my_menu.print(&my_menu);
 
   mvwprintw(my_menu_win, window_row -1 , 2 , "%s" , "Press Ctrl+C to Exit");

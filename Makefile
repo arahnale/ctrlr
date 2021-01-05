@@ -10,10 +10,8 @@ test:
 install:
 	cp ./a.out ~/ctrlr
 
-debian:
-	gcc main.c -g -lncurses -lreadline -o a.out
+docker_debian:
+	docker build -t ctrlr . && docker run --rm -v `pwd`:/mnt ctrlr make debian
 
-menu:
-	gcc menu.c -g -lncursesw -ltinfow -lreadline -o a.out
-
-
+debian: clean
+	/usr/bin/gcc main.c -g -lncursesw -lreadline -o a.out
