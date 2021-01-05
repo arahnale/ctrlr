@@ -4,9 +4,13 @@
 #include <string.h>
 #include <ncurses.h>
 #include <locale.h>
+// библиотека для парсинга файла с историей
 #include <readline/history.h>
+// требуется для красивой обработки CTRL+C
 #include <signal.h>
+// передача текста в ввод терминала
 #include <sys/ioctl.h>
+// позволяет открывать устройсво как файл
 #include <fcntl.h> 
 
 
@@ -85,7 +89,6 @@ typedef struct {
     char * path;
     char * type;
 } s_history_file;
-/** s_history_file ** history_files[] = {"/.zsh_history" , "zsh"} , {"/.bash_history" , "bash"}; */
 
 // удобный макрос чтобы не писать 100500 одинаковых строчек
 #define PREPARE_IMPL(self) \
@@ -96,12 +99,10 @@ typedef struct {
 // перевод из многобайтовой кодировки в двубайтовую
 // выглядит как кусок говна, работает примерно так же
 char * _decode(char * c) {
-
   char * str = ( char* ) malloc( sizeof( char * ) );
   unsigned int len = 0;
 
   while (*c) {
-
     if (c[0] == -48 && c[1] == -125 && c[2] > -125) {
       str = (char*)realloc(str , (len + 2) * sizeof(char) ) ;
       str[len] = c[0];
@@ -145,7 +146,6 @@ char * _decode(char * c) {
 
   str = (char*)realloc(str , (len + 1) * sizeof(char) ) ;
   str[len] = '\0';
-  /** return (char *)str; */
   return str;
 }
 
@@ -190,6 +190,7 @@ static void set_menu_mark(menu_t * self, char * mark) {
   PREPARE_IMPL(self)
 }
 
+// устанавливаю фильтр
 static void set_menu_filter(menu_t * self, char * filter) {
   PREPARE_IMPL(self)
   _privat->item_filter = filter;
@@ -214,9 +215,8 @@ static void print(menu_t * self) {
   int max_x = _privat->position_count_x - _privat->position_start_x;
 
   // очищаю остатки, чтобы не очищать экран полность (полная очистка пока работает не красиво)
-  for (int y = _privat->position_start_y ; y < max_y ; y++) {
-    mvwprintw(_privat->win, y , _privat->position_start_x , "%*s" ,
-        max_x , " ");
+  for (int y = _privat->position_start_y ; y < max_y + _privat->position_start_y ; y++) {
+    mvwprintw(_privat->win, y , _privat->position_start_x , "%*s" , max_x , " ");
   }
 
   _privat->on_display_count = 0;
@@ -321,6 +321,7 @@ s_history_file * _get_histfile() {
   char * env_home = getenv("HOME");
   s_history_file * history_file;
 
+  // TODO: не красиво
   if (history_file = _true_path(env_home , "/.zsh_history" , "zsh"))
     return history_file;
   if (history_file = _true_path(env_home , "/.bash_history" , "bash"))
@@ -413,6 +414,7 @@ int main() {
         break;
       // BackSpace
       case 127:
+      case 263:
         if (filter_word.len <= 0) break;
         filter_word.data[--filter_word.len] = '\0';
         my_menu.set_menu_filter(&my_menu , filter_word.data);
@@ -434,6 +436,7 @@ int main() {
     mvwprintw(my_menu_win, 0 , 2 , " %s " , filter_word.data);
     mvwprintw(my_menu_win, window_row -1 , 2 , "%s" , "Press Ctrl+C to Exit");
     my_menu.print(&my_menu);
+    // код нажатой клавиши, требуется для отладки
     /** mvwprintw(my_menu_win, 0 , 2 , "%d" , c); */
     refresh();
     wrefresh(my_menu_win);
